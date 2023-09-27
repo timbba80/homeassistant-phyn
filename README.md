@@ -1,6 +1,6 @@
 # homeassistant-phyn
 
-Home Assistant custom component for interfacing with [Phyn](https://www.phyn.com) Smart Water Assistant.
+Home Assistant custom component for interfacing with [Phyn](https://www.phyn.com) Smart Water Assistant and Kohler H2Wise+ by Phyn.
 
 This integration currently provides the following capabilities:
 

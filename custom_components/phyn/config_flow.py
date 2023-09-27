@@ -9,7 +9,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN, LOGGER
 
-DATA_SCHEMA = vol.Schema({vol.Required("username"): str, vol.Required("password"): str})
+BRANDS = ["Phyn", "Kohler"]
+
+DATA_SCHEMA = vol.Schema({
+    vol.Required(CONF_USERNAME): str,
+    vol.Required(CONF_PASSWORD): str,
+    vol.Required("Brand"): vol.In(BRANDS),
+})
 
 
 async def validate_input(hass: core.HomeAssistant, data):
@@ -21,7 +27,7 @@ async def validate_input(hass: core.HomeAssistant, data):
     session = async_get_clientsession(hass)
     try:
         api = await async_get_api(
-            data[CONF_USERNAME], data[CONF_PASSWORD], session=session
+            data[CONF_USERNAME], data[CONF_PASSWORD], data["Brand"].lower(), session=session
         )
     except RequestError as request_error:
         LOGGER.error("Error connecting to the Phyn API: %s", request_error)
