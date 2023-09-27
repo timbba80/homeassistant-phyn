@@ -26,7 +26,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = {}
     try:
         hass.data[DOMAIN][entry.entry_id][CLIENT] = client = await async_get_api(
-            entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD], session=session
+            entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD],
+            phyn_brand=entry.data["Brand"].lower(), session=session
         )
     except RequestError as err:
         raise ConfigEntryNotReady from err
