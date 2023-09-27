@@ -27,7 +27,7 @@ async def validate_input(hass: core.HomeAssistant, data):
     session = async_get_clientsession(hass)
     try:
         api = await async_get_api(
-            data[CONF_USERNAME], data[CONF_PASSWORD], data["Brand"].lower(), session=session
+            data[CONF_USERNAME], data[CONF_PASSWORD], phyn_brand=data["Brand"].lower(), session=session
         )
     except RequestError as request_error:
         LOGGER.error("Error connecting to the Phyn API: %s", request_error)
