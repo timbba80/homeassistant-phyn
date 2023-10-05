@@ -4,15 +4,28 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from aiophyn.api import API
-from aiophyn.errors import RequestError
+from .aiophyn.api import API
+from .aiophyn.errors import RequestError
 from async_timeout import timeout
+
+from .exceptions import HaAuthError, HaCannotConnect
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import homeassistant.util.dt as dt_util
 
 from .const import DOMAIN as PHYN_DOMAIN, LOGGER
+
+from .devices.pp2 import (
+    PhynFlowState,
+    PhynDailyUsageSensor,
+    PhynCurrentFlowRateSensor,
+    PhynSwitch,
+    PhynTemperatureSensor,
+    PhynPressureSensor
+)
+
+import json
 
 
 class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
@@ -28,12 +41,24 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         self._phyn_device_id: str = device_id
         self._manufacturer: str = "Phyn"
         self._device_state: dict[str, Any] = {}
+        self._rt_device_state: dict[str, Any] = {}
         self._water_usage: dict[str, Any] = {}
+
+        self.entities = [
+            PhynFlowState(self),
+            PhynDailyUsageSensor(self),
+            PhynCurrentFlowRateSensor(self),
+            PhynTemperatureSensor(self),
+            PhynPressureSensor(self),
+
+            PhynSwitch(self),
+        ]
+
         super().__init__(
             hass,
             LOGGER,
             name=f"{PHYN_DOMAIN}-{device_id}",
-            update_interval=timedelta(seconds=60),
+            #update_interval=timedelta(seconds=60),
         )
 
     async def _async_update_data(self):
@@ -73,6 +98,8 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def rssi(self) -> float:
         """Return rssi for device."""
+        if "rssi" in self._rt_device_state:
+            return self._rt_device_state['rssi']
         return self._device_state["signal_strength"]
 
     @property
@@ -83,17 +110,25 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def current_flow_rate(self) -> float:
         """Return current flow rate in gpm."""
-        return self._device_state["flow"]["mean"]
+        if "flow" in self._rt_device_state:
+            if round(self._rt_device_state['flow']['v'], 2) == 0:
+                return 0.0
+            return round(self._rt_device_state['flow']['v'], 3)
+        return round(self._device_state["flow"]["mean"], 3)
 
     @property
     def current_psi(self) -> float:
         """Return the current pressure in psi."""
-        return self._device_state["pressure"]["mean"]
+        if "sensor_data" in self._rt_device_state:
+            return round(self._rt_device_state['sensor_data']['pressure']['v'], 2)
+        return round(self._device_state["pressure"]["mean"], 2)
 
     @property
     def temperature(self) -> float:
         """Return the current temperature in degrees F."""
-        return self._device_state["temperature"]["mean"]
+        if "sensor_data" in self._rt_device_state:
+            return round(self._rt_device_state['sensor_data']['temperature']['v'], 2)
+        return round(self._device_state["temperature"]["mean"], 2)
 
     @property
     def consumption_today(self) -> float:
@@ -113,7 +148,18 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def valve_state(self) -> str:
         """Return the valve state for the device."""
-        return self._device_state["sov_status"]["v"]
+        if "sov_state" in self._rt_device_state:
+            return self._rt_device_state["sov_state"]
+        if "sov_status" in self._device_state:
+            return self._device_state["sov_status"]["v"]
+        return None
+
+    async def async_setup(self):
+        """Setup a new device coordinator"""
+        LOGGER.debug("Setting up coordinator")
+
+        await self.api_client.mqtt.add_event_handler("update", self.on_device_update)
+        await self.api_client.mqtt.subscribe("prd/app_subscriptions/%s" % self._phyn_device_id)
 
     async def _update_device(self, *_) -> None:
         """Update the device state from the API."""
@@ -130,3 +176,11 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
             self._phyn_device_id, duration
         )
         LOGGER.debug("Updated Phyn consumption data: %s", self._water_usage)
+
+    async def on_device_update(self, device_id, data):
+        #LOGGER.debug("Received new data: %s" % json.dumps(data, indent=2))
+        if device_id == self._phyn_device_id:
+            self._rt_device_state = data
+            for entity in self.entities:
+                #LOGGER.debug(f"Updating {entity} ({entity.unique_id}, {entity.entity_id})")
+                entity.async_write_ha_state()

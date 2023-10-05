@@ -1,6 +1,6 @@
 """Config flow for phyn integration."""
-from aiophyn import async_get_api
-from aiophyn.errors import RequestError
+from .aiophyn import async_get_api
+from .aiophyn.errors import RequestError
 import voluptuous as vol
 
 from homeassistant import config_entries, core, exceptions

@@ -7,8 +7,7 @@ from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo, Entity
 
 from .const import DOMAIN as PHYN_DOMAIN
-from .device import PhynDeviceDataUpdateCoordinator
-
+#from .device import PhynDeviceDataUpdateCoordinator
 
 class PhynEntity(Entity):
     """A base class for Phyn entities."""
@@ -17,18 +16,19 @@ class PhynEntity(Entity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
+    #TEMPORARY: Typing disabled due to circular dependencies
     def __init__(
         self,
         entity_type: str,
         name: str,
-        device: PhynDeviceDataUpdateCoordinator,
+        device, #: PhynDeviceDataUpdateCoordinator,
         **kwargs,
     ) -> None:
         """Init Phyn entity."""
         self._attr_name = name
         self._attr_unique_id = f"{device.id}_{entity_type}"
 
-        self._device: PhynDeviceDataUpdateCoordinator = device
+        self._device = device #: PhynDeviceDataUpdateCoordinator = device
         self._state: Any = None
 
     @property
