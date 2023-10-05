@@ -2,8 +2,8 @@
 import asyncio
 import logging
 
-from .aiophyn import async_get_api
-from .aiophyn.errors import RequestError
+from aiophyn import async_get_api
+from aiophyn.errors import RequestError
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform

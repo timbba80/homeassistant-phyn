@@ -4,8 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from .aiophyn.api import API
-from .aiophyn.errors import RequestError
+from aiophyn.api import API
+from aiophyn.errors import RequestError
 from async_timeout import timeout
 
 from .exceptions import HaAuthError, HaCannotConnect
