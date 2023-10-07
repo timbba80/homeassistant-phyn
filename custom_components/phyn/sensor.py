@@ -11,7 +11,7 @@ from homeassistant.components.sensor import SensorEntity
 from .const import DOMAIN as PHYN_DOMAIN
 from .device import PhynDeviceDataUpdateCoordinator
 
-from .devices.pp2 import PhynDailyUsageSensor, PhynCurrentFlowRateSensor, PhynTemperatureSensor, PhynPressureSensor
+from .devices.pp import PhynDailyUsageSensor, PhynCurrentFlowRateSensor, PhynTemperatureSensor, PhynPressureSensor
 
 NAME_WATER_TEMPERATURE = "Average water temperature"
 

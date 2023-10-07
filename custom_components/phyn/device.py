@@ -16,9 +16,10 @@ import homeassistant.util.dt as dt_util
 
 from .const import DOMAIN as PHYN_DOMAIN, LOGGER
 
-from .devices.pp2 import (
+from .devices.pp import (
     PhynFlowState,
     PhynDailyUsageSensor,
+    PhynConsumptionSensor,
     PhynCurrentFlowRateSensor,
     PhynSwitch,
     PhynTemperatureSensor,
@@ -32,27 +33,32 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
     """Phyn device object."""
 
     def __init__(
-        self, hass: HomeAssistant, api_client: API, home_id: str, device_id: str
+        self, hass: HomeAssistant, api_client: API, home_id: str, device_id: str,
+        product_code: str
     ) -> None:
         """Initialize the device."""
         self.hass: HomeAssistant = hass
         self.api_client: API = api_client
         self._phyn_home_id: str = home_id
         self._phyn_device_id: str = device_id
+        self._product_code: str = product_code
         self._manufacturer: str = "Phyn"
         self._device_state: dict[str, Any] = {}
         self._rt_device_state: dict[str, Any] = {}
         self._water_usage: dict[str, Any] = {}
 
-        self.entities = [
-            PhynFlowState(self),
-            PhynDailyUsageSensor(self),
-            PhynCurrentFlowRateSensor(self),
-            PhynTemperatureSensor(self),
-            PhynPressureSensor(self),
+        if product_code in ['PP1','PP2']:
+            # Entities for Phyn Plus 1 and Phyn Plus 2
+            self.entities = [
+                PhynFlowState(self),
+                PhynDailyUsageSensor(self),
+                PhynCurrentFlowRateSensor(self),
+                PhynConsumptionSensor(self),
+                PhynTemperatureSensor(self),
+                PhynPressureSensor(self),
 
-            PhynSwitch(self),
-        ]
+                PhynSwitch(self),
+            ]
 
         super().__init__(
             hass,
@@ -129,6 +135,13 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         if "sensor_data" in self._rt_device_state:
             return round(self._rt_device_state['sensor_data']['temperature']['v'], 2)
         return round(self._device_state["temperature"]["mean"], 2)
+
+    @property
+    def consumption(self) -> float:
+        """Return the current consumption for today in gallons."""
+        if "consumption" not in self._rt_device_state:
+            return None
+        return self._rt_device_state["consumption"]["v"]
 
     @property
     def consumption_today(self) -> float:

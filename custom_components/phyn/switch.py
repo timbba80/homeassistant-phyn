@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN as PHYN_DOMAIN
 from .device import PhynDeviceDataUpdateCoordinator
 
-from .devices.pp2 import PhynSwitch
+from .devices.pp import PhynSwitch
 
 
 async def async_setup_entry(

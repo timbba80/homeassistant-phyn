@@ -17,7 +17,7 @@ from .exceptions import HaAuthError, HaCannotConnect
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -43,7 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     #    raise HaCannotConnect("Unknown MQTT connection failure")
 
     hass.data[DOMAIN][entry.entry_id]["devices"] = devices = [
-        PhynDeviceDataUpdateCoordinator(hass, client, home["id"], device["device_id"])
+        PhynDeviceDataUpdateCoordinator(hass, client, home["id"], device["device_id"], device["product_code"])
         for home in homes
         for device in home["devices"]
     ]
