@@ -48,6 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         PhynDeviceDataUpdateCoordinator(hass, client, home["id"], device["device_id"], device["product_code"])
         for home in homes
         for device in home["devices"]
+        if device["product_code"] in ["PP1","PP2"]
     ]
 
     tasks = [device.async_refresh() for device in devices]
