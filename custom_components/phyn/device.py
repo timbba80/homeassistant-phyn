@@ -8,12 +8,11 @@ from aiophyn.api import API
 from aiophyn.errors import RequestError
 from async_timeout import timeout
 
-from .exceptions import HaAuthError, HaCannotConnect
-
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import homeassistant.util.dt as dt_util
 
+from .exceptions import HaAuthError, HaCannotConnect
 from .const import DOMAIN as PHYN_DOMAIN, LOGGER
 
 from .devices.pp import (
@@ -21,12 +20,10 @@ from .devices.pp import (
     PhynDailyUsageSensor,
     PhynConsumptionSensor,
     PhynCurrentFlowRateSensor,
-    PhynSwitch,
+    PhynValve,
     PhynTemperatureSensor,
     PhynPressureSensor
 )
-
-import json
 
 
 class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
@@ -46,6 +43,7 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         self._device_state: dict[str, Any] = {}
         self._rt_device_state: dict[str, Any] = {}
         self._water_usage: dict[str, Any] = {}
+        self._last_known_valve_state: bool = True
 
         if product_code in ['PP1','PP2']:
             # Entities for Phyn Plus 1 and Phyn Plus 2
@@ -56,8 +54,7 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
                 PhynConsumptionSensor(self),
                 PhynTemperatureSensor(self),
                 PhynPressureSensor(self),
-
-                PhynSwitch(self),
+                PhynValve(self),
             ]
 
         super().__init__(
@@ -120,6 +117,8 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
             if round(self._rt_device_state['flow']['v'], 2) == 0:
                 return 0.0
             return round(self._rt_device_state['flow']['v'], 3)
+        if "flow" not in self._device_state:
+            return None
         return round(self._device_state["flow"]["mean"], 3)
 
     @property
@@ -127,6 +126,8 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         """Return the current pressure in psi."""
         if "sensor_data" in self._rt_device_state:
             return round(self._rt_device_state['sensor_data']['pressure']['v'], 2)
+        if "sensor_data" not in self._device_state:
+            return None
         return round(self._device_state["pressure"]["mean"], 2)
 
     @property
@@ -134,6 +135,8 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         """Return the current temperature in degrees F."""
         if "sensor_data" in self._rt_device_state:
             return round(self._rt_device_state['sensor_data']['temperature']['v'], 2)
+        if "sensor_data" not in self._device_state:
+            return None
         return round(self._device_state["temperature"]["mean"], 2)
 
     @property
@@ -159,13 +162,26 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         return self._device_state["serial_number"]
 
     @property
-    def valve_state(self) -> str:
+    def valve_open(self) -> bool:
         """Return the valve state for the device."""
+        if self.valve_changing:
+            return self._last_known_valve_state
         if "sov_state" in self._rt_device_state:
-            return self._rt_device_state["sov_state"]
+            self._last_known_valve_state = self._rt_device_state["sov_state"] == "Open"
+            return self._rt_device_state["sov_state"] == "Open"
         if "sov_status" in self._device_state:
-            return self._device_state["sov_status"]["v"]
+            self._last_known_valve_state = self._device_state["sov_status"]["v"] == "Open"
+            return self._device_state["sov_status"]["v"] == "Open"
         return None
+
+    @property
+    def valve_changing(self) -> bool:
+        """Return the valve changing status"""
+        if "sov_state" in self._rt_device_state:
+            return self._rt_device_state["sov_state"] == "Partial"
+        if "sov_status" in self._device_state:
+            return self._device_state["sov_status"]["v"] == "Partial"
+        return False
 
     async def async_setup(self):
         """Setup a new device coordinator"""
@@ -191,9 +207,7 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         LOGGER.debug("Updated Phyn consumption data: %s", self._water_usage)
 
     async def on_device_update(self, device_id, data):
-        #LOGGER.debug("Received new data: %s" % json.dumps(data, indent=2))
         if device_id == self._phyn_device_id:
             self._rt_device_state = data
             for entity in self.entities:
-                #LOGGER.debug(f"Updating {entity} ({entity.unique_id}, {entity.entity_id})")
                 entity.async_write_ha_state()

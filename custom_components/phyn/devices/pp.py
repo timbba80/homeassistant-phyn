@@ -1,21 +1,17 @@
 """Support for Phyn Plus Water Monitor sensors."""
 from __future__ import annotations
 
-from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
-    BinarySensorDeviceClass,
-)
-
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.components.switch import SwitchEntity
-from homeassistant.core import callback
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.components.valve import (
+    ValveDeviceClass,
+    ValveEntity,
+    ValveEntityFeature
+)
 from homeassistant.const import (
-    PERCENTAGE,
     UnitOfPressure,
     UnitOfTemperature,
     UnitOfVolume,
@@ -106,54 +102,57 @@ class PhynCurrentFlowRateSensor(PhynEntity, SensorEntity):
         """Return the current flow rate."""
         if self._device.current_flow_rate is None:
             return None
-        return round(self._device.current_flow_rate, 1)
+        return round(self._device.current_flow_rate, 1) 
 
 
-class PhynSwitch(PhynEntity, SwitchEntity):
-    """Switch class for the Phyn valve."""
+class PhynValve(PhynEntity, ValveEntity):
+    """ValveEntity for the Phyn valve."""
 
     def __init__(self, device) -> None:
-        """Initialize the Phyn switch."""
+        """Initialize the Phyn Valve."""
         super().__init__("shutoff_valve", "Shutoff valve", device)
-        self._state = self._device.valve_state == "Open"
-
-    @property
-    def is_on(self) -> bool:
-        """Return True if the valve is open. Keep state for transition"""
-        if self._device.valve_state == "Partial":
-            return self._state
-        self._state = self._device.valve_state == "Open"
-        return self._state
-
-    @property
-    def icon(self):
-        """Return the icon to use for the valve."""
-        if self.is_on:
-            return "mdi:valve-open"
-        return "mdi:valve-closed"
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
+        self._attr_supported_features = ValveEntityFeature(ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE)
+        self._attr_device_class = ValveDeviceClass.WATER
+        self._attr_reports_position = False
+        self._last_known_state: bool = False
+    
+    async def async_open_valve(self) -> None:
         """Open the valve."""
         await self._device.api_client.device.open_valve(self._device.id)
-        #self._state = True
-        #self.async_write_ha_state()
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
+    def open_valve(self) -> None:
+        """Open the valve."""
+        raise NotImplementedError()
+    
+    async def async_close_valve(self) -> None:
         """Close the valve."""
         await self._device.api_client.device.close_valve(self._device.id)
-        #self._state = False
-        #self.async_write_ha_state()
 
-    @callback
-    def async_update_state(self) -> None:
-        """Retrieve the latest valve state and update the state machine."""
-        self._state = self._device.valve_state == "Open"
-        self.async_write_ha_state()
+    def close_valve(self) -> None:
+        """Close valve."""
+        raise NotImplementedError()
+    
+    @property
+    def _attr_is_closed(self) -> bool | None:
+        """ Is the valve closed """
+        if self._device.valve_open is None:
+            return None
+        self._last_known_state = self._device.valve_open
+        return not self._device.valve_open
+    
+    @property
+    def _attr_is_opening(self) -> bool:
+        """ Is the valve opening """
+        if self._device.valve_changing and self._device._last_known_valve_state is False:
+            return True
+        return False
 
-    async def async_added_to_hass(self) -> None:
-        """When entity is added to hass."""
-        self.async_on_remove(self._device.async_add_listener(self.async_update_state))
-
+    @property
+    def _attr_is_closing(self) -> bool:
+        """ Is the valve closing """
+        if self._device.valve_changing and self._device._last_known_valve_state is True:
+            return True
+        return False
 
 
 class PhynTemperatureSensor(PhynEntity, SensorEntity):

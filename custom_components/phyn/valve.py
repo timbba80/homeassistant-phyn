@@ -5,7 +5,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.valve import ValveEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN as PHYN_DOMAIN
 from .device import PhynDeviceDataUpdateCoordinator
 
-from .devices.pp import PhynSwitch
+from .devices.pp import PhynValve
 
 
 async def async_setup_entry(
@@ -32,6 +32,6 @@ async def async_setup_entry(
         entities.extend([
             entity
             for entity in device.entities
-            if isinstance(entity, SwitchEntity)
+            if isinstance(entity, ValveEntity)
         ])
     async_add_entities(entities)
