@@ -42,6 +42,7 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         self._manufacturer: str = "Phyn"
         self._device_state: dict[str, Any] = {}
         self._rt_device_state: dict[str, Any] = {}
+        self._away_mode: dict[str, Any] = {}
         self._water_usage: dict[str, Any] = {}
         self._last_known_valve_state: bool = True
 
@@ -70,6 +71,7 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
             async with timeout(20):
                 await self._update_device()
                 await self._update_consumption_data()
+                await self._update_away_mode()
         except (RequestError) as error:
             raise UpdateFailed(error) from error
 
@@ -189,6 +191,12 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
 
         await self.api_client.mqtt.add_event_handler("update", self.on_device_update)
         await self.api_client.mqtt.subscribe("prd/app_subscriptions/%s" % self._phyn_device_id)
+        return self._device_state["sov_status"]["v"]
+
+    @property
+    def away_mode(self) -> bool:
+        """Return True if device is in away mode."""
+        return self._away_mode["value"] == "true"
 
     async def _update_device(self, *_) -> None:
         """Update the device state from the API."""
@@ -211,3 +219,10 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
             self._rt_device_state = data
             for entity in self.entities:
                 entity.async_write_ha_state()
+
+    async def _update_away_mode(self, *_) -> None:
+        """Update the away mode data from the API"""
+        self._away_mode = await self.api_client.device.get_away_mode(
+            self._phyn_device_id
+        )
+        LOGGER.debug("Phyn away mode: %s", self._away_mode)
