@@ -17,7 +17,7 @@ from .exceptions import HaAuthError, HaCannotConnect
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR, Platform.VALVE]
+PLATFORMS = [Platform.SENSOR, Platform.SWITCH, Platform.VALVE]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

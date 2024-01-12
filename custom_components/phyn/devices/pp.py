@@ -1,6 +1,7 @@
 """Support for Phyn Plus Water Monitor sensors."""
 from __future__ import annotations
 
+from homeassistant.components.switch import SwitchEntity
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -16,6 +17,7 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfVolume,
 )
+from homeassistant.core import callback
 
 from ..entity import PhynEntity
 
@@ -25,6 +27,48 @@ NAME_DAILY_USAGE = "Daily water usage"
 NAME_FLOW_RATE = "Current water flow rate"
 NAME_WATER_TEMPERATURE = "Current water temperature"
 NAME_WATER_PRESSURE = "Current water pressure"
+
+class PhynAwayModeSwitch(PhynEntity, SwitchEntity):
+    """Switch class for the Phyn Away Mode."""
+
+    def __init__(self, device) -> None:
+        """Initialize the Phyn Away Mode switch."""
+        super().__init__("away_mode", "Away Mode", device)
+
+    @property
+    def _state(self) -> bool:
+        return self._device.away_mode
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if away mode is on."""
+        return self._state
+
+    @property
+    def icon(self):
+        """Return the icon to use for the away mode."""
+        if self.is_on:
+            return "mdi:bag-suitcase"
+        return "mdi:home-circle"
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Open the valve."""
+        self._device.set_away_mode(True)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Close the valve."""
+        self._device.set_away_mode(False)
+        self.async_write_ha_state()
+
+    @callback
+    def async_update_state(self) -> None:
+        """Retrieve the latest valve state and update the state machine."""
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """When entity is added to hass."""
+        self.async_on_remove(self._device.async_add_listener(self.async_update_state))
 
 class PhynFlowState(PhynEntity, SensorEntity):
 

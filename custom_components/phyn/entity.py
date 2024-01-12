@@ -29,7 +29,6 @@ class PhynEntity(Entity):
         self._attr_unique_id = f"{device.id}_{entity_type}"
 
         self._device = device #: PhynDeviceDataUpdateCoordinator = device
-        self._state: Any = None
 
     @property
     def device_info(self) -> DeviceInfo:
