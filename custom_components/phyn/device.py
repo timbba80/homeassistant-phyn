@@ -16,6 +16,7 @@ from .exceptions import HaAuthError, HaCannotConnect
 from .const import DOMAIN as PHYN_DOMAIN, LOGGER
 
 from .devices.pp import (
+    PhynAwayModeSwitch,
     PhynFlowState,
     PhynDailyUsageSensor,
     PhynConsumptionSensor,
@@ -40,14 +41,22 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         self._phyn_device_id: str = device_id
         self._product_code: str = product_code
         self._manufacturer: str = "Phyn"
-        self._device_state: dict[str, Any] = {}
+        self._device_state: dict[str, Any] = {
+            "flow_state": {
+                "v": 0.0,
+                "ts": 0,
+            }
+        }
         self._rt_device_state: dict[str, Any] = {}
+        self._away_mode: dict[str, Any] = {}
         self._water_usage: dict[str, Any] = {}
         self._last_known_valve_state: bool = True
 
         if product_code in ['PP1','PP2']:
             # Entities for Phyn Plus 1 and Phyn Plus 2
+            
             self.entities = [
+                PhynAwayModeSwitch(self),
                 PhynFlowState(self),
                 PhynDailyUsageSensor(self),
                 PhynCurrentFlowRateSensor(self),
@@ -61,7 +70,7 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             LOGGER,
             name=f"{PHYN_DOMAIN}-{device_id}",
-            #update_interval=timedelta(seconds=60),
+            update_interval=timedelta(seconds=60),
         )
 
     async def _async_update_data(self):
@@ -70,6 +79,7 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
             async with timeout(20):
                 await self._update_device()
                 await self._update_consumption_data()
+                await self._update_away_mode()
         except (RequestError) as error:
             raise UpdateFailed(error) from error
 
@@ -113,30 +123,22 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def current_flow_rate(self) -> float:
         """Return current flow rate in gpm."""
-        if "flow" in self._rt_device_state:
-            if round(self._rt_device_state['flow']['v'], 2) == 0:
-                return 0.0
-            return round(self._rt_device_state['flow']['v'], 3)
-        if "flow" not in self._device_state:
+        if "v" not in self._device_state["flow"]:
             return None
-        return round(self._device_state["flow"]["mean"], 3)
+        return round(self._device_state["flow"]["v"], 3)
 
     @property
     def current_psi(self) -> float:
         """Return the current pressure in psi."""
-        if "sensor_data" in self._rt_device_state:
-            return round(self._rt_device_state['sensor_data']['pressure']['v'], 2)
-        if "sensor_data" not in self._device_state:
-            return None
+        if "v" in self._device_state["pressure"]:
+            return round(self._device_state["pressure"]["v"], 2)
         return round(self._device_state["pressure"]["mean"], 2)
 
     @property
     def temperature(self) -> float:
         """Return the current temperature in degrees F."""
-        if "sensor_data" in self._rt_device_state:
-            return round(self._rt_device_state['sensor_data']['temperature']['v'], 2)
-        if "sensor_data" not in self._device_state:
-            return None
+        if "v" in self._device_state["temperature"]:
+            return round(self._device_state["temperature"]["v"], 2)
         return round(self._device_state["temperature"]["mean"], 2)
 
     @property
@@ -166,35 +168,43 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         """Return the valve state for the device."""
         if self.valve_changing:
             return self._last_known_valve_state
-        if "sov_state" in self._rt_device_state:
-            self._last_known_valve_state = self._rt_device_state["sov_state"] == "Open"
-            return self._rt_device_state["sov_state"] == "Open"
-        if "sov_status" in self._device_state:
-            self._last_known_valve_state = self._device_state["sov_status"]["v"] == "Open"
-            return self._device_state["sov_status"]["v"] == "Open"
-        return None
+        self._last_known_valve_state = self._device_state["sov_status"]["v"] == "Open"
+        return self._device_state["sov_status"]["v"] == "Open"
 
     @property
     def valve_changing(self) -> bool:
         """Return the valve changing status"""
-        if "sov_state" in self._rt_device_state:
-            return self._rt_device_state["sov_state"] == "Partial"
-        if "sov_status" in self._device_state:
-            return self._device_state["sov_status"]["v"] == "Partial"
-        return False
+        return self._device_state["sov_status"]["v"] == "Partial"
 
     async def async_setup(self):
         """Setup a new device coordinator"""
         LOGGER.debug("Setting up coordinator")
 
         await self.api_client.mqtt.add_event_handler("update", self.on_device_update)
-        await self.api_client.mqtt.subscribe("prd/app_subscriptions/%s" % self._phyn_device_id)
+        await self.api_client.mqtt.subscribe(f"prd/app_subscriptions/{self._phyn_device_id}")
+        return self._device_state["sov_status"]["v"]
+
+    @property
+    def away_mode(self) -> bool:
+        """Return True if device is in away mode."""
+        if "value" not in self._away_mode:
+            return None
+        return self._away_mode["value"] == "true"
+    
+    async def set_away_mode(self, state: bool) -> None:
+        """Manually set away mode value"""
+        if state:
+            await self.api_client.device.enable_away_mode(self.id)
+            self._away_mode["value"] = "true"
+        else:
+            await self.api_client.device.disable_away_mode(self.id)
+            self._away_mode["value"] = "false"
 
     async def _update_device(self, *_) -> None:
         """Update the device state from the API."""
-        self._device_state = await self.api_client.device.get_state(
+        self._device_state.update(await self.api_client.device.get_state(
             self._phyn_device_id
-        )
+        ))
         LOGGER.debug("Phyn device state: %s", self._device_state)
 
     async def _update_consumption_data(self, *_) -> None:
@@ -209,5 +219,27 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
     async def on_device_update(self, device_id, data):
         if device_id == self._phyn_device_id:
             self._rt_device_state = data
+
+            update_data = {}
+            if "flow" in data:
+                update_data.update({"flow": data["flow"]})
+            if "flow_state" in data:
+                update_data.update({"flow_state": data["flow_state"]})
+            if "sov_status" in data:
+                update_data.update({"sov_status":{"v": data["sov_status"]}})
+            if "sensor_data" in data:
+                if "pressure" in data["sensor_data"]:
+                    update_data.update({"pressure": data["sensor_data"]["pressure"]})
+                if "temperature" in data["sensor_data"]:
+                    update_data.update({"temperature": data["sensor_data"]["temperature"]})
+            self._device_state.update(update_data)
+
             for entity in self.entities:
                 entity.async_write_ha_state()
+
+    async def _update_away_mode(self, *_) -> None:
+        """Update the away mode data from the API"""
+        self._away_mode = await self.api_client.device.get_away_mode(
+            self._phyn_device_id
+        )
+        LOGGER.debug("Phyn away mode: %s", self._away_mode)
