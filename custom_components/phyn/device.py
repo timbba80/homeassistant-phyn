@@ -21,6 +21,9 @@ from .devices.pp import (
     PhynDailyUsageSensor,
     PhynConsumptionSensor,
     PhynCurrentFlowRateSensor,
+    PhynFirmwareUpdateAvailableSensor,
+    PhynLeakTestSensor,
+    PhynScheduledLeakTestEnabledSwitch,
     PhynValve,
     PhynTemperatureSensor,
     PhynPressureSensor
@@ -47,6 +50,8 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
                 "ts": 0,
             }
         }
+        self._device_preferences: dict[dict[str, Any]] = {}
+        self._firmware_info: dict[str, Any] = {}
         self._rt_device_state: dict[str, Any] = {}
         self._away_mode: dict[str, Any] = {}
         self._water_usage: dict[str, Any] = {}
@@ -54,13 +59,15 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
 
         if product_code in ['PP1','PP2']:
             # Entities for Phyn Plus 1 and Phyn Plus 2
-            
             self.entities = [
                 PhynAwayModeSwitch(self),
                 PhynFlowState(self),
                 PhynDailyUsageSensor(self),
                 PhynCurrentFlowRateSensor(self),
                 PhynConsumptionSensor(self),
+                PhynFirmwareUpdateAvailableSensor(self),
+                PhynLeakTestSensor(self),
+                PhynScheduledLeakTestEnabledSwitch(self),
                 PhynTemperatureSensor(self),
                 PhynPressureSensor(self),
                 PhynValve(self),
@@ -78,8 +85,9 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         try:
             async with timeout(20):
                 await self._update_device()
+                await self._update_device_preferences()
+                await self._update_firmware_information()
                 await self._update_consumption_data()
-                await self._update_away_mode()
         except (RequestError) as error:
             raise UpdateFailed(error) from error
 
@@ -157,6 +165,20 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
     def firmware_version(self) -> str:
         """Return the firmware version for the device."""
         return self._device_state["fw_version"]
+    
+    @property
+    def firmware_has_update(self) -> bool:
+        """Return if the firmware has an update"""
+        if "fw_version" not in self._firmware_info:
+            return None
+        return int(self._firmware_info["fw_version"]) > int(self._device_state["fw_version"])
+
+    @property
+    def scheduled_leak_test_enabled(self) -> bool:
+        """Return if the scheduled leak test is enabled"""
+        if "scheduler_enable" not in self._device_preferences:
+            return None
+        return self._device_preferences["scheduler_enable"]["value"] == "true"
 
     @property
     def serial_number(self) -> str:
@@ -176,6 +198,11 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         """Return the valve changing status"""
         return self._device_state["sov_status"]["v"] == "Partial"
 
+    @property
+    def leak_test_running(self) -> bool:
+        """Check if a leak test is running"""
+        return self._device_state["sov_status"]["v"] == "LeakExp"
+
     async def async_setup(self):
         """Setup a new device coordinator"""
         LOGGER.debug("Setting up coordinator")
@@ -187,25 +214,65 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def away_mode(self) -> bool:
         """Return True if device is in away mode."""
-        if "value" not in self._away_mode:
+        if "leak_sensitivity_away_mode" not in self._device_preferences:
             return None
-        return self._away_mode["value"] == "true"
+        return self._device_preferences["leak_sensitivity_away_mode"]["value"] == "true"
+
+    async def set_device_preference(self, name: str, val: bool) -> None:
+        """Set Device Preference"""
+        if name not in ["leak_sensitivity_away_mode", "scheduler_enable"]:
+            LOGGER.debug("Tried setting preference for %s but not avialable", name)
+            return None
+        if val not in ["true", "false"]:
+            return None
+        params = [{
+            "device_id": self._phyn_device_id,
+            "name": name,
+            "value": val
+        }]
+        LOGGER.debug("Setting preference '%s' to '%s'", name, val)
+        await self.api_client.device.set_device_preferences(self._phyn_device_id, params)
+        if name not in self._device_preferences:
+            self._device_preferences[name] = {}
+        self._device_preferences[name]["value"] = val
     
     async def set_away_mode(self, state: bool) -> None:
         """Manually set away mode value"""
-        if state:
-            await self.api_client.device.enable_away_mode(self.id)
-            self._away_mode["value"] = "true"
-        else:
-            await self.api_client.device.disable_away_mode(self.id)
-            self._away_mode["value"] = "false"
+        key = "leak_sensitivity_away_mode"
+        val = "true" if state else "false"
+        params = [{
+            "device_id": self._phyn_device_id,
+            "name": key,
+            "value": val
+        }]
+        await self.api_client.device.set_device_preferences(self._phyn_device_id, params)
+        self._device_preferences[key]["value"] = val
+
+    async def set_scheduler_enabled(self, state: bool) -> None:
+        """Manually set the scheduler enabled mode"""
+        key = "scheduler_enable"
+        val = "true" if state else "false"
+        params = [{
+            "device_id": self._phyn_device_id,
+            "name": key,
+            "value": val
+        }]
+        await self.api_client.set_device_preferences(self._phyn_device_id, params)
+        self._device_preferences[key]["value"] = val
 
     async def _update_device(self, *_) -> None:
         """Update the device state from the API."""
         self._device_state.update(await self.api_client.device.get_state(
             self._phyn_device_id
         ))
-        LOGGER.debug("Phyn device state: %s", self._device_state)
+        #LOGGER.debug("Phyn device state: %s", self._device_state)
+
+    async def _update_device_preferences(self, *_) -> None:
+        """Update the device preferences from the API"""
+        data = await self.api_client.device.get_device_preferences(self._phyn_device_id)
+        for item in data:
+            self._device_preferences.update({item['name']: item})
+        LOGGER.debug("Device Preferences: %s", self._device_preferences)
 
     async def _update_consumption_data(self, *_) -> None:
         """Update water consumption data from the API."""
@@ -216,6 +283,10 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
         )
         LOGGER.debug("Updated Phyn consumption data: %s", self._water_usage)
 
+    async def _update_firmware_information(self, *_) -> None:
+        self._firmware_info.update((await self.api_client.device.get_latest_firmware_info(self._phyn_device_id))[0])
+        #LOGGER.debug("Firmware Info: %s", self._firmware_info)
+
     async def on_device_update(self, device_id, data):
         if device_id == self._phyn_device_id:
             self._rt_device_state = data
@@ -225,14 +296,15 @@ class PhynDeviceDataUpdateCoordinator(DataUpdateCoordinator):
                 update_data.update({"flow": data["flow"]})
             if "flow_state" in data:
                 update_data.update({"flow_state": data["flow_state"]})
-            if "sov_status" in data:
-                update_data.update({"sov_status":{"v": data["sov_status"]}})
+            if "sov_state" in data:
+                update_data.update({"sov_status":{"v": data["sov_state"]}})
             if "sensor_data" in data:
                 if "pressure" in data["sensor_data"]:
                     update_data.update({"pressure": data["sensor_data"]["pressure"]})
                 if "temperature" in data["sensor_data"]:
                     update_data.update({"temperature": data["sensor_data"]["temperature"]})
             self._device_state.update(update_data)
+            LOGGER.debug("Device State: %s", self._device_state)
 
             for entity in self.entities:
                 entity.async_write_ha_state()

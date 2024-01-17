@@ -1,7 +1,12 @@
 """Support for Phyn Plus Water Monitor sensors."""
 from __future__ import annotations
+from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -19,7 +24,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback
 
-from ..entity import PhynEntity
+from ..entity import PhynEntity, PhynSwitchEntity
 
 WATER_ICON = "mdi:water"
 GAUGE_ICON = "mdi:gauge"
@@ -28,21 +33,17 @@ NAME_FLOW_RATE = "Current water flow rate"
 NAME_WATER_TEMPERATURE = "Current water temperature"
 NAME_WATER_PRESSURE = "Current water pressure"
 
-class PhynAwayModeSwitch(PhynEntity, SwitchEntity):
+class PhynAwayModeSwitch(PhynSwitchEntity):
     """Switch class for the Phyn Away Mode."""
 
     def __init__(self, device) -> None:
         """Initialize the Phyn Away Mode switch."""
         super().__init__("away_mode", "Away Mode", device)
+        self._preference_name = "leak_sensitivity_away_mode"
 
     @property
     def _state(self) -> bool:
         return self._device.away_mode
-
-    @property
-    def is_on(self) -> bool:
-        """Return True if away mode is on."""
-        return self._state
 
     @property
     def icon(self):
@@ -51,27 +52,20 @@ class PhynAwayModeSwitch(PhynEntity, SwitchEntity):
             return "mdi:bag-suitcase"
         return "mdi:home-circle"
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Open the valve."""
-        self._device.set_away_mode(True)
-        self.async_write_ha_state()
+class PhynFirmwareUpdateAvailableSensor(PhynEntity, BinarySensorEntity):
+    """Firmware Update Available Sensor"""
+    _attr_device_class = BinarySensorDeviceClass.UPDATE
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Close the valve."""
-        self._device.set_away_mode(False)
-        self.async_write_ha_state()
+    def __init__(self, device):
+        """Intialize Firmware Update Sensor."""
+        super().__init__("firmware_update_available", "Firmware Update Available", device)
 
-    @callback
-    def async_update_state(self) -> None:
-        """Retrieve the latest valve state and update the state machine."""
-        self.async_write_ha_state()
-
-    async def async_added_to_hass(self) -> None:
-        """When entity is added to hass."""
-        self.async_on_remove(self._device.async_add_listener(self.async_update_state))
+    @property
+    def is_on(self) -> bool:
+        return self._device.firmware_has_update
 
 class PhynFlowState(PhynEntity, SensorEntity):
-
+    """Flow State for Water Sensor"""
     _attr_icon = WATER_ICON
     #_attr_native_unit_of_measurement = UnitOfVolume.GALLONS
     #_attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
@@ -87,6 +81,37 @@ class PhynFlowState(PhynEntity, SensorEntity):
         if "flow_state" in self._device._rt_device_state:
             return self._device._rt_device_state['flow_state']['v']
         return None
+
+class PhynLeakTestSensor(PhynEntity, BinarySensorEntity):
+    """Leak Test Sensor"""
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+
+    def __init__(self, device):
+        """Initialize the leak test sensor."""
+        super().__init__("leak_test_running", "Leak Test Running", device)
+
+    @property
+    def is_on(self) -> bool:
+        return self._device.leak_test_running
+
+class PhynScheduledLeakTestEnabledSwitch(PhynSwitchEntity):
+    """Switch class for the Phyn Away Mode."""
+
+    def __init__(self, device) -> None:
+        """Initialize the Phyn Away Mode switch."""
+        super().__init__("scheduled_leak_test_enabled", "Scheduled Leak Test Enabled", device)
+        self._preference_name = "scheduler_enable"
+    
+    @property
+    def _state(self) -> bool:
+        return self._device.scheduled_leak_test_enabled
+
+    @property
+    def icon(self):
+        """Return the icon to use for the away mode."""
+        if self.is_on:
+            return "mdi:bag-suitcase"
+        return "mdi:home-circle"
 
 class PhynDailyUsageSensor(PhynEntity, SensorEntity):
     """Monitors the daily water usage."""

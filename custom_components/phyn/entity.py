@@ -5,6 +5,7 @@ from typing import Any
 
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo, Entity
+from homeassistant.components.switch import SwitchEntity
 
 from .const import DOMAIN as PHYN_DOMAIN
 #from .device import PhynDeviceDataUpdateCoordinator
@@ -54,3 +55,37 @@ class PhynEntity(Entity):
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         self.async_on_remove(self._device.async_add_listener(self.async_write_ha_state))
+
+class PhynSwitchEntity(PhynEntity, SwitchEntity):
+    """Switch class for the Phyn Away Mode."""
+
+    def __init__(
+        self,
+        entity_type: str,
+        name: str,
+        device, #: PhynDeviceDataUpdateCoordinator,
+        **kwargs,
+    ) -> None:
+        """Initialize the Phyn Away Mode switch."""
+        super().__init__(entity_type, name, device)
+        self._preference_name = None
+
+    @property
+    def _state(self) -> bool:
+        """Switch State"""
+        raise NotImplementedError()
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if away mode is on."""
+        return self._state
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on the preference."""
+        await self._device.set_device_preference(self._preference_name, "true")
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off the preference."""
+        await self._device.set_device_preference(self._preference_name, "false")
+        self.async_write_ha_state()
