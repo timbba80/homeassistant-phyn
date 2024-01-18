@@ -157,9 +157,10 @@ class PhynConsumptionSensor(PhynEntity, SensorEntity):
 class PhynCurrentFlowRateSensor(PhynEntity, SensorEntity):
     """Monitors the current water flow rate."""
 
-    _attr_native_unit_of_measurement = "gpm"
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
+    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL
     _attr_translation_key = "current_flow_rate"
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_native_unit_of_measurement = UnitOfVolume.GALLONS
 
     def __init__(self, device):
         """Initialize the flow rate sensor."""
