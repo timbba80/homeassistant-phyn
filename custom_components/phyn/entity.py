@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.components.switch import SwitchEntity
 
@@ -54,7 +53,11 @@ class PhynEntity(Entity):
 
     async def async_added_to_hass(self):
         """When entity is added to hass."""
-        self.async_on_remove(self._device.async_add_listener(self.async_write_ha_state))
+        #Temporary!!
+        try:
+            self.async_on_remove(self._device._coordinator.async_add_listener(self.async_write_ha_state))
+        except:
+            self.async_on_remove(self._device.async_add_listener(self.async_write_ha_state))
 
 class PhynSwitchEntity(PhynEntity, SwitchEntity):
     """Switch class for the Phyn Away Mode."""

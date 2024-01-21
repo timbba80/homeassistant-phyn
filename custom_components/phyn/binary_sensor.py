@@ -7,7 +7,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.components.binary_sensor import BinarySensorEntity
 
 from .const import DOMAIN as PHYN_DOMAIN
-from .device import PhynDeviceDataUpdateCoordinator
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -15,16 +14,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Phyn switches from config entry."""
-    devices: list[PhynDeviceDataUpdateCoordinator] = hass.data[PHYN_DOMAIN][
-        config_entry.entry_id
-    ]["devices"]
+    coordinator = hass.data[PHYN_DOMAIN][config_entry.entry_id]["coordinator"]
     entities = []
-    for device in devices:
-        entities.extend(
-            [
-                entity
-                for entity in device.entities
-                if isinstance(entity, BinarySensorEntity)
-            ]
-        )
+    for device in coordinator.devices:
+        entities.extend([
+            entity
+            for entity in device.entities
+            if isinstance(entity, BinarySensorEntity)
+        ])
     async_add_entities(entities)

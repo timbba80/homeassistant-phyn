@@ -1,21 +1,12 @@
 """Switch representing the shutoff valve for the Phyn integration."""
 from __future__ import annotations
 
-from typing import Any
-
-import voluptuous as vol
-
-from homeassistant.components.valve import ValveEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import entity_platform
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components.valve import ValveEntity
 
 from .const import DOMAIN as PHYN_DOMAIN
-from .device import PhynDeviceDataUpdateCoordinator
-
-from .devices.pp import PhynValve
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -23,15 +14,13 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Phyn switches from config entry."""
-    devices: list[PhynDeviceDataUpdateCoordinator] = hass.data[PHYN_DOMAIN][
-        config_entry.entry_id
-    ]["devices"]
+    coordinator = hass.data[PHYN_DOMAIN][config_entry.entry_id]["coordinator"]
     entities = []
-
-    for device in devices:
+    for device in coordinator.devices:
         entities.extend([
-            entity
-            for entity in device.entities
-            if isinstance(entity, ValveEntity)
+                entity
+                for entity in device.entities
+                if isinstance(entity, ValveEntity)
         ])
+
     async_add_entities(entities)

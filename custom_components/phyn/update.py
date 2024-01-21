@@ -4,7 +4,7 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.update import UpdateEntity
 
 from .const import DOMAIN as PHYN_DOMAIN
 
@@ -20,6 +20,6 @@ async def async_setup_entry(
         entities.extend([
             entity
             for entity in device.entities
-            if isinstance(entity, SwitchEntity)
+            if isinstance(entity, UpdateEntity)
         ])
     async_add_entities(entities)

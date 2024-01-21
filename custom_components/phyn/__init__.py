@@ -12,12 +12,12 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import CLIENT, DOMAIN
-from .device import PhynDeviceDataUpdateCoordinator
+from .update_coordinator import PhynDataUpdateCoordinator
 from .exceptions import HaAuthError, HaCannotConnect
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.SWITCH, Platform.VALVE]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.SWITCH, Platform.UPDATE, Platform.VALVE]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -44,18 +44,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     #except:
     #    raise HaCannotConnect("Unknown MQTT connection failure")
 
-    hass.data[DOMAIN][entry.entry_id]["devices"] = devices = [
-        PhynDeviceDataUpdateCoordinator(hass, client, home["id"], device["device_id"], device["product_code"])
-        for home in homes
-        for device in home["devices"]
-        if device["product_code"] in ["PP1","PP2"]
-    ]
+    coordinator = PhynDataUpdateCoordinator(hass, client)
+    for home in homes:
+        for device in home["devices"]:
+            if device["product_code"] in ["PW1","PP1","PP2"]:
+                coordinator.add_device(home["id"], device["device_id"], device["product_code"])
+    hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
 
-    tasks = [device.async_refresh() for device in devices]
-    await asyncio.gather(*tasks)
-
-    tasks = [device.async_setup() for device in devices]
-    await asyncio.gather(*tasks)
+    await coordinator.async_refresh()
+    await coordinator.async_setup()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
