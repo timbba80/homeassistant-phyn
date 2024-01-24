@@ -19,6 +19,27 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR, Platform.SWITCH, Platform.UPDATE, Platform.VALVE]
 
+async def async_migrate_entry(hass, config_entry: ConfigEntry):
+    """Migrate old entry."""
+    _LOGGER.debug("Migrating from version %s.%s", config_entry.version, config_entry.minor_version)
+
+    if config_entry.version > 1:
+      # This means the user has downgraded from a future version
+      return False
+
+    if config_entry.version == 1:
+        new = {**config_entry.data}
+        if config_entry.minor_version < 2:
+            if "Brand" not in new:
+                new['Brand'] = "phyn"
+
+        config_entry.version = 1
+        config_entry.minor_version = 2
+        hass.config_entries.async_update_entry(config_entry, data=new)
+
+    _LOGGER.debug("Migration to version %s.%s successful", config_entry.version, config_entry.minor_version)
+
+    return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up flo from a config entry."""
