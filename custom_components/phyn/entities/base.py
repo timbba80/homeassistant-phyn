@@ -209,8 +209,8 @@ class PhynHumiditySensor(PhynEntity, SensorEntity):
 class PhynPressureSensor(PhynEntity, SensorEntity):
     """Monitors the water pressure."""
 
-    _attr_device_class = SensorDeviceClass.TEMPERATURE
-    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_device_class = SensorDeviceClass.PRESSURE
+    _attr_native_unit_of_measurement = UnitOfPressure.PSI
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
 
     def __init__(self, device, name, readable_name, device_property = None):
