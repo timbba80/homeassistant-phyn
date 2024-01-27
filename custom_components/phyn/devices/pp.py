@@ -25,10 +25,11 @@ from homeassistant.const import (
     UnitOfVolume,
 )
 
+from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
 from homeassistant.helpers.update_coordinator import UpdateFailed
 import homeassistant.util.dt as dt_util
 
-from ..const import LOGGER
+from ..const import GPM_TO_LPM, LOGGER, UnitOfVolumeFlow
 from ..entities.base import (
     PhynEntity,
     PhynFirmwareUpdateAvailableSensor,
@@ -368,22 +369,30 @@ class PhynConsumptionSensor(PhynEntity, SensorEntity):
 class PhynCurrentFlowRateSensor(PhynEntity, SensorEntity):
     """Monitors the current water flow rate."""
 
-    _attr_native_unit_of_measurement = "gpm"
     _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
     _attr_translation_key = "current_flow_rate"
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_native_unit_of_measurement = UnitOfVolumeFlow.GALLONS_PER_MINUTE
 
     def __init__(self, device):
         """Initialize the flow rate sensor."""
         super().__init__("current_flow_rate", NAME_FLOW_RATE, device)
         self._state: float = None
+    
+    @property
+    def native_unit_of_measurement(self) -> str:
+        if self._device.coordinator.hass.config.units is US_CUSTOMARY_SYSTEM:
+            return UnitOfVolumeFlow.GALLONS_PER_MINUTE
+        return UnitOfVolumeFlow.LITERS_PER_MINUTE
 
     @property
     def native_value(self) -> float | None:
         """Return the current flow rate."""
         if self._device.current_flow_rate is None:
             return None
-        return round(self._device.current_flow_rate, 1) 
-
+        if self.native_unit_of_measurement is UnitOfVolumeFlow.GALLONS_PER_MINUTE:
+            return round(self._device.current_flow_rate, 1) 
+        return round(self._device.current_flow_rate * GPM_TO_LPM, 1)
 
 class PhynValve(PhynEntity, ValveEntity):
     """ValveEntity for the Phyn valve."""
