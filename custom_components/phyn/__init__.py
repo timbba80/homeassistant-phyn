@@ -68,8 +68,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = PhynDataUpdateCoordinator(hass, client)
     for home in homes:
         for device in home["devices"]:
-            if device["product_code"] in ["PW1","PP1","PP2"]:
-                coordinator.add_device(home["id"], device["device_id"], device["product_code"])
+            coordinator.add_device(home["id"], device["device_id"], device["product_code"])
     hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
 
     await coordinator.async_refresh()
