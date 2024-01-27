@@ -32,8 +32,10 @@ import homeassistant.util.dt as dt_util
 from ..const import GPM_TO_LPM, LOGGER, UnitOfVolumeFlow
 from ..entities.base import (
     PhynEntity,
+    PhynDailyUsageSensor,
     PhynFirmwareUpdateAvailableSensor,
     PhynFirwmwareUpdateEntity,
+    PhynPressureSensor,
     PhynTemperatureSensor,
     PhynSwitchEntity
 )
@@ -76,7 +78,7 @@ class PhynPlusDevice(PhynDevice):
             PhynLeakTestSensor(self),
             PhynScheduledLeakTestEnabledSwitch(self),
             PhynTemperatureSensor(self, "temperature", NAME_WATER_TEMPERATURE),
-            PhynPressureSensor(self),
+            PhynPressureSensor(self, "pressure", NAME_WATER_PRESSURE),
             PhynValve(self),
         ]
 
@@ -325,26 +327,6 @@ class PhynScheduledLeakTestEnabledSwitch(PhynSwitchEntity):
             return "mdi:bag-suitcase"
         return "mdi:home-circle"
 
-class PhynDailyUsageSensor(PhynEntity, SensorEntity):
-    """Monitors the daily water usage."""
-
-    _attr_icon = WATER_ICON
-    _attr_native_unit_of_measurement = UnitOfVolume.GALLONS
-    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
-    _attr_device_class = SensorDeviceClass.WATER
-
-    def __init__(self, device):
-        """Initialize the daily water usage sensor."""
-        super().__init__("daily_consumption", NAME_DAILY_USAGE, device)
-        self._state: float = None
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the current daily usage."""
-        if self._device.consumption_today is None:
-            return None
-        return round(self._device.consumption_today, 1)
-
 class PhynConsumptionSensor(PhynEntity, SensorEntity):
     """Monitors the amount of water usage."""
 
@@ -442,23 +424,3 @@ class PhynValve(PhynEntity, ValveEntity):
         if self._device.valve_changing and self._device._last_known_valve_state is True:
             return True
         return False
-
-
-class PhynPressureSensor(PhynEntity, SensorEntity):
-    """Monitors the water pressure."""
-
-    _attr_device_class = SensorDeviceClass.PRESSURE
-    _attr_native_unit_of_measurement = UnitOfPressure.PSI
-    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
-
-    def __init__(self, device):
-        """Initialize the pressure sensor."""
-        super().__init__("water_pressure", NAME_WATER_PRESSURE, device)
-        self._state: float = None
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the current water pressure."""
-        if self._device.current_psi is None:
-            return None
-        return round(self._device.current_psi, 1)

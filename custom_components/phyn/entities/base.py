@@ -29,6 +29,9 @@ from homeassistant.const import (
 
 from ..const import DOMAIN as PHYN_DOMAIN
 
+WATER_ICON = "mdi:water"
+NAME_DAILY_USAGE = "Daily water usage"
+
 class PhynEntity(Entity):
     """A base class for Phyn entities."""
 
@@ -87,6 +90,26 @@ class PhynAlertSensor(PhynEntity, BinarySensorEntity):
         if self._device_property is not None and hasattr(self._device, self._device_property):
             return getattr(self._device, self._device_property)
         return None
+
+class PhynDailyUsageSensor(PhynEntity, SensorEntity):
+    """Monitors the daily water usage."""
+
+    _attr_icon = WATER_ICON
+    _attr_native_unit_of_measurement = UnitOfVolume.GALLONS
+    _attr_state_class: SensorStateClass = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = SensorDeviceClass.WATER
+
+    def __init__(self, device):
+        """Initialize the daily water usage sensor."""
+        super().__init__("daily_consumption", NAME_DAILY_USAGE, device)
+        self._state: float = None
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current daily usage."""
+        if self._device.consumption_today is None:
+            return None
+        return round(self._device.consumption_today, 1)
 
 class PhynFirmwareUpdateAvailableSensor(PhynEntity, BinarySensorEntity):
     """Firmware Update Available Sensor"""
@@ -183,6 +206,27 @@ class PhynHumiditySensor(PhynEntity, SensorEntity):
             return None
         return round(self._device.humidity, 1)
 
+class PhynPressureSensor(PhynEntity, SensorEntity):
+    """Monitors the water pressure."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_state_class: SensorStateClass = SensorStateClass.MEASUREMENT
+
+    def __init__(self, device, name, readable_name, device_property = None):
+        """Initialize the pressure sensor."""
+        super().__init__(name, readable_name, device)
+        self._state: float = None
+        self._device_property = device_property
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current water pressure."""
+        if self._device_property is not None and hasattr(self._device, self._device_property):
+            return getattr(self._device, self._device_property)
+        if not hasattr(self._device, "current_psi") or self._device.current_psi is None:
+            return None
+        return round(self._device.current_psi, 1)
 
 class PhynTemperatureSensor(PhynEntity, SensorEntity):
     """Monitors the temperature."""
