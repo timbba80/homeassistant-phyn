@@ -58,11 +58,10 @@ class PhynClassicDevice(PhynDevice):
             PhynDailyUsageSensor(self),
             PhynFirmwareUpdateAvailableSensor(self),
             PhynFirwmwareUpdateEntity(self),
-            # TODO: Ensure cold and hot lines are using the right number
             PhynTemperatureSensor(self, "temperature1", "Average hot water temperature", "temperature1"),
             PhynTemperatureSensor(self, "temperature2", "Average cold water temperature", "temperature2"),
-            PhynPressureSensor(self, "pressure1", "Average hot water pressure", "current_ps1"),
-            PhynPressureSensor(self, "pressure2", "Average cold water pressure", "current_ps2"),
+            PhynPressureSensor(self, "pressure1", "Average hot water pressure", "current_psi1"),
+            PhynPressureSensor(self, "pressure2", "Average cold water pressure", "current_psi2"),
         ]
 
     async def async_update_data(self):
@@ -143,3 +142,7 @@ class PhynClassicDevice(PhynDevice):
             self._phyn_device_id, duration
         )
         LOGGER.debug("Updated Phyn consumption data: %s", self._water_usage)
+
+    async def async_setup(self):
+        """Async setup not needed"""
+        return None
