@@ -389,7 +389,7 @@ class PhynValve(PhynEntity, ValveEntity):
     
     async def async_open_valve(self) -> None:
         """Open the valve."""
-        await self._device.api_client.device.open_valve(self._device.id)
+        await self._device.coordinator.api_client.device.open_valve(self._device.id)
 
     def open_valve(self) -> None:
         """Open the valve."""
@@ -397,7 +397,7 @@ class PhynValve(PhynEntity, ValveEntity):
     
     async def async_close_valve(self) -> None:
         """Close the valve."""
-        await self._device.api_client.device.close_valve(self._device.id)
+        await self._device.coordinator.api_client.device.close_valve(self._device.id)
 
     def close_valve(self) -> None:
         """Close valve."""
