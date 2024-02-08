@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import DOMAIN as PHYN_DOMAIN, LOGGER
 
 
+from .devices.pc import PhynClassicDevice
 from .devices.pp import PhynPlusDevice
 from .devices.pw import PhynWaterSensorDevice
 
@@ -39,6 +40,10 @@ class PhynDataUpdateCoordinator(DataUpdateCoordinator):
         if product_code in ["PP1","PP2"]:
             self._devices.append(
                 PhynPlusDevice(self, home_id, device_id, product_code)
+            )
+        elif product_code in ["PC1"]:
+            self._devices.append(
+                PhynClassicDevice(self, home_id, device_id, product_code)
             )
         elif product_code in ["PW1"]:
             self._devices.append(
